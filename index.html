@@ -107,7 +107,27 @@ body.editing .niche:hover{transform:none}
 .niche .batch{font-family:var(--thai);font-size:11px;letter-spacing:.22em;color:var(--foil);margin:9px 0 0}
 .niche .role{font-family:var(--thai);font-size:12.5px;font-weight:300;line-height:1.7;
   color:var(--muted);margin:9px 0 0}
-.jobwrap{margin:11px 0 0}
+.jobwrap{margin:11px 0 0;display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+
+/* ตำแหน่ง toggles (multi-select while editing) */
+.job.tog{cursor:pointer;background:transparent;font-family:var(--body)}
+.job.tog[aria-pressed="false"]{color:var(--muted);opacity:.55}
+.job.tog[aria-pressed="true"]{background:linear-gradient(180deg,rgba(239,213,163,.16),rgba(199,155,74,.1));
+  border-color:var(--champagne);color:var(--champagne)}
+.job.tog:hover{opacity:1;color:var(--champagne);border-color:rgba(239,213,163,.5)}
+
+/* โปรเจกต์ tags */
+.tags{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0 0}
+.tags:empty{display:none}
+.tag{font-family:var(--thai);font-size:11px;letter-spacing:.03em;line-height:1.5;
+  color:var(--blush);border:1px solid rgba(233,169,159,.32);background:rgba(233,169,159,.07);
+  border-radius:999px;padding:4px 12px}
+.tagedit{font-family:var(--thai);font-size:12px;color:var(--muted);margin:10px 0 0;line-height:1.7}
+body:not(.editing) .tagedit{display:none}
+.titleblock .tags{justify-content:flex-start;margin:16px 0 0}
+.titleblock .tag{font-size:12.5px;padding:5px 14px}
+.titleblock .tagedit{text-align:left}
+.meta .jobwrap{margin:0;justify-content:flex-start}
 
 /* the ตำแหน่ง badge — a pill when reading, a dropdown when editing */
 .job{display:inline-block;font-family:var(--body);font-size:9.5px;font-weight:500;
@@ -296,12 +316,14 @@ body.editing .footnote{display:block}
     </div>
     <div class="frow" id="jobChips"></div>
     <div class="frow" id="batchChips"></div>
+    <div class="frow" id="tagChips"></div>
     <p class="count" id="count"></p>
   </div>
 
   <main class="wall" id="wall" aria-live="polite"></main>
 
   <p class="hint">ลากปุ่มมุมซ้ายบนของการ์ดเพื่อสลับลำดับ · หรือกดปุ่มนั้นแล้วใช้ปุ่มลูกศรซ้าย-ขวา<br>
+    กดชื่อตำแหน่งเพื่อเลือก/เอาออก (เลือกได้หลายอัน) · โปรเจกต์พิมพ์คั่นด้วยเครื่องหมาย ,<br>
     <span id="modeNote"></span></p>
   <div class="footnote">
     <button id="backup">ดาวน์โหลดสำเนาข้อมูลเก็บไว้</button>
@@ -332,8 +354,8 @@ body.editing .footnote{display:block}
    Setup steps are in README.md.
    ============================================================ */
 const CONFIG = {
-  SUPABASE_URL : '',            // e.g. 'https://abcdefg.supabase.co'
-  SUPABASE_KEY : '',            // the public "anon" key
+  SUPABASE_URL : 'https://krpamfvheyrzyvxxbtuc.supabase.co',            // e.g. 'https://abcdefg.supabase.co'  (Settings > API > Project URL)
+  SUPABASE_KEY : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtycGFtZnZoZXlyenl2eHhidHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NDI5NTIsImV4cCI6MjEwMjExODk1Mn0.rmcQamJ08gMjJU_TD0fKktCqhheHlKm4mUyOBlceRYM',            // the public "anon" key               (Settings > API > anon public)
   TABLE        : 'people',
   EDIT_CODE    : ''             // optional: a word people must type to edit
 };
@@ -343,7 +365,7 @@ const JOBS = ['BD','Logistic','IT','Programmer'];
 const DEFAULT_LABEL = 'คำที่อยากบอก';
 
 const SEED = [
-  {"id":"p1", "name":"JRBABUKUNG", "job":"BD", "batch":"Example", "role":"ตัวอย่างคำโปรย", "photo":"", "label":"คำที่อยากบอก", "message":"ตัวอย่างข้อความ — พิมพ์สิ่งที่อยากบอกไว้ในหนังสือรุ่นตรงนี้ได้เลย", "ord":1},
+  {"id":"p1", "name":"JRBABUKUNG", "jobs":["BD","IT"], "tags":["Yearbook 2026","Onboarding"], "batch":"Example", "role":"ตัวอย่างคำโปรย", "photo":"", "label":"คำที่อยากบอก", "message":"ตัวอย่างข้อความ — พิมพ์สิ่งที่อยากบอกไว้ในหนังสือรุ่นตรงนี้ได้เลย", "ord":1},
   {"id":"p2", "name":"คิม", "job":"BD", "batch":"รุ่น 0", "role":"", "photo":"", "label":"คำที่อยากบอก", "message":"", "ord":2},
   {"id":"p3", "name":"ก้อง", "job":"BD", "batch":"รุ่น 0", "role":"", "photo":"", "label":"คำที่อยากบอก", "message":"", "ord":3},
   {"id":"pmshv4lletazq", "name":"สกาย", "job":"BD", "batch":"รุ่น 0", "role":"", "photo":"", "label":"คำที่อยากบอก", "message":"", "ord":4},
@@ -376,7 +398,9 @@ const SEED = [
    ============================================================ */
 const KEY = 'yearbook:people';
 const REMOTE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY);
-const api = p => `${CONFIG.SUPABASE_URL.replace(/\/$/,'')}/rest/v1/${CONFIG.TABLE}${p}`;
+/* accepts https://xxx.supabase.co  OR  https://xxx.supabase.co/rest/v1/ — both work */
+const BASE = CONFIG.SUPABASE_URL.trim().replace(/\/+$/,'').replace(/\/rest\/v1$/,'');
+const api = p => `${BASE}/rest/v1/${CONFIG.TABLE}${p}`;
 const authHeaders = () => ({ apikey: CONFIG.SUPABASE_KEY, Authorization: 'Bearer ' + CONFIG.SUPABASE_KEY });
 
 /* when no database is configured, keep edits on this device.
@@ -395,6 +419,10 @@ const local = {
   }
 };
 
+/* only these keys are sent to the database — must match the table columns */
+const COLUMNS = ['id','name','job','jobs','tags','batch','role','photo','label','message','ord'];
+const toRow = p => Object.fromEntries(COLUMNS.map(k => [k, p[k]]));
+
 const store = {
   async all(){
     if(REMOTE){
@@ -411,7 +439,7 @@ const store = {
       const r = await fetch(api(''), {
         method:'POST',
         headers:{ ...authHeaders(), 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(Array.isArray(payload) ? payload.map(toRow) : toRow(payload))
       });
       if(!r.ok) throw new Error(await r.text());
     } else await local.set(JSON.stringify(people));
@@ -433,11 +461,25 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
 let people = [], view = [], openId = null;
-let query = '', batch = 'all', job = 'all';
+let query = '', batch = 'all', job = 'all', tag = 'all';
 let editing = false, unlocked = !CONFIG.EDIT_CODE, photoTarget = null;
 
+/* accepts an array, a JSON string, or "a, b, c" — always returns a clean array */
+function toArr(v){
+  if(Array.isArray(v)) return [...new Set(v.map(x => String(x).trim()).filter(Boolean))];
+  if(typeof v === 'string'){
+    const t = v.trim();
+    if(!t) return [];
+    if(t.startsWith('[')){ try{ return toArr(JSON.parse(t)); }catch(e){} }
+    return [...new Set(t.split(',').map(x => x.trim()).filter(Boolean))];
+  }
+  return [];
+}
+
 function normalise(p){
-  const o = { id:p.id || uid(), name:p.name||'', job:p.job||'', batch:p.batch||'', role:p.role||'',
+  const jobs = toArr(p.jobs).length ? toArr(p.jobs) : toArr(p.job);
+  const o = { id:p.id || uid(), name:p.name||'', job:jobs[0]||'', jobs, tags:toArr(p.tags),
+              batch:p.batch||'', role:p.role||'',
               photo:p.photo||'', label:p.label||DEFAULT_LABEL, message:p.message||'',
               ord: typeof p.ord === 'number' ? p.ord : 0 };
   if(!o.message && Array.isArray(p.qa))                    // carry over older entries
@@ -446,14 +488,20 @@ function normalise(p){
 }
 
 async function load(){
-  let data = null;
+  let data = null, failed = false;
   try{ data = await store.all(); }
-  catch(e){ flash('เชื่อมต่อฐานข้อมูลไม่ได้'); }
+  catch(e){
+    failed = true;
+    console.error('[yearbook] load failed:', e);
+    console.error('[yearbook] tried:', api('?select=*'));
+    flash('เชื่อมต่อฐานข้อมูลไม่ได้ — เปิด Console ดูรายละเอียด');
+  }
   people = (data && data.length ? data : SEED).map(normalise);
   people.sort((a,b) => (a.ord||0) - (b.ord||0));
   people.forEach((p,i) => p.ord = i + 1);
   render();
-  if(REMOTE && (!data || !data.length)) store.put(people).catch(()=>{});
+  if(REMOTE && !failed && (!data || !data.length))
+    store.put(people).catch(e => console.error('[yearbook] seeding failed:', e));
 }
 
 const getP = id => people.find(p => p.id === id);
@@ -468,7 +516,7 @@ function saveSoon(id){
   timers[id] = setTimeout(async () => {
     const p = getP(id); if(!p) return;
     try{ await store.put(p); flash('บันทึกแล้ว'); }
-    catch(e){ flash('บันทึกไม่สำเร็จ'); }
+    catch(e){ console.error('[yearbook] save failed:', e); flash('บันทึกไม่สำเร็จ'); }
   }, 600);
 }
 async function saveMany(list){
@@ -479,6 +527,7 @@ async function saveMany(list){
 
 /* ---------- render ---------- */
 function batches(){ return [...new Set(people.map(p => p.batch).filter(Boolean))].sort(); }
+function allTags(){ return [...new Set(people.flatMap(p => p.tags))].sort((a,b)=>a.localeCompare(b,'th')); }
 function renderChips(){
   $('#jobChips').innerHTML = `<span class="lab">ตำแหน่ง</span>` +
     `<button class="chip" data-job="all" aria-pressed="${job==='all'}">ทั้งหมด</button>` +
@@ -486,18 +535,32 @@ function renderChips(){
   $('#batchChips').innerHTML = `<span class="lab">รุ่น</span>` +
     ['all', ...batches()].map(b =>
       `<button class="chip" data-b="${esc(b)}" aria-pressed="${b===batch}">${b==='all'?'ทั้งหมด':esc(b)}</button>`).join('');
+  const tags = allTags();
+  $('#tagChips').style.display = tags.length ? '' : 'none';
+  $('#tagChips').innerHTML = `<span class="lab">โปรเจกต์</span>` +
+    ['all', ...tags].map(t =>
+      `<button class="chip" data-tag="${esc(t)}" aria-pressed="${t===tag}">${t==='all'?'ทั้งหมด':esc(t)}</button>`).join('');
 }
 function avatar(p){
   if(p.photo) return `<img src="${esc(p.photo)}" alt="${esc(p.name)}" loading="lazy" onerror="this.remove()">`;
   const ch = (p.name||'').trim().charAt(0) || '✦';
   return `<div class="monogram ${isThai(ch)?'th':''}">${esc(ch)}</div>`;
 }
-function jobEl(p){
-  if(editing) return `<select class="job" data-sel="job" data-id="${p.id}" aria-label="ตำแหน่ง">
-      <option value="">ตำแหน่ง</option>
-      ${JOBS.map(j => `<option value="${esc(j)}"${p.job===j?' selected':''}>${esc(j)}</option>`).join('')}
-    </select>`;
-  return p.job ? `<span class="job">${esc(p.job)}</span>` : '';
+/* ตำแหน่ง — read: one pill per department. edit: every department is a toggle. */
+function jobsEl(p){
+  if(editing) return `<div class="jobwrap">${JOBS.map(j =>
+      `<button class="job tog" data-togjob data-id="${p.id}" data-val="${esc(j)}"
+        aria-pressed="${p.jobs.includes(j)}">${esc(j)}</button>`).join('')}</div>`;
+  if(!p.jobs.length) return '';
+  return `<div class="jobwrap">${p.jobs.map(j => `<span class="job">${esc(j)}</span>`).join('')}</div>`;
+}
+
+/* โปรเจกต์ — read: pills. edit: one line, comma separated. */
+function tagsEl(p){
+  if(editing) return `<p class="tagedit" data-f="tags" data-arr="1" data-id="${p.id}"
+      data-ph="โปรเจกต์ที่ทำ คั่นด้วย ,">${esc(p.tags.join(', '))}</p>`;
+  if(!p.tags.length) return '';
+  return `<div class="tags">${p.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
 }
 const CAM = `<button class="cam" data-cam title="เปลี่ยนรูป">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EFD5A3" stroke-width="1.7">
@@ -509,10 +572,12 @@ const GRIP = `<button class="grip" title="ลากเพื่อสลับ�
 
 function render(){
   renderChips();
+  const q = query.trim().toLowerCase();
   view = people.filter(p =>
     (batch === 'all' || p.batch === batch) &&
-    (job === 'all' || p.job === job) &&
-    (!query || (p.name||'').toLowerCase().includes(query.toLowerCase())));
+    (job === 'all' || p.jobs.includes(job)) &&
+    (tag === 'all' || p.tags.includes(tag)) &&
+    (!q || [p.name, p.role, ...p.jobs, ...p.tags].join(' ').toLowerCase().includes(q)));
   $('#count').textContent = view.length + ' / ' + people.length + ' entries';
 
   const cards = view.map(p => `
@@ -523,9 +588,10 @@ function render(){
         ${avatar(p)}${CAM}
       </div>
       <p class="name ${isThai(p.name)?'th':''}" data-f="name" data-id="${p.id}" data-ph="ใส่ชื่อ">${esc(p.name)}</p>
-      <div class="jobwrap">${jobEl(p)}</div>
+      ${jobsEl(p)}
       <p class="batch" data-f="batch" data-id="${p.id}" data-ph="ใส่รุ่น">${esc(p.batch)}</p>
       <p class="role" data-f="role" data-id="${p.id}" data-ph="คำโปรยหรือตำแหน่ง">${esc(p.role)}</p>
+      ${tagsEl(p)}
     </article>`).join('');
 
   const add = `<div class="addcard"><button id="addNew" title="เพิ่มคนใหม่">+</button><p>เพิ่มคนใหม่</p></div>`;
@@ -553,10 +619,11 @@ function openProfile(id){
       <div class="titleblock">
         <div class="meta">
           <p class="batch" data-f="batch" data-id="${p.id}" data-ph="ใส่รุ่น">${esc(p.batch)}</p>
-          ${jobEl(p)}
+          ${jobsEl(p)}
         </div>
         <h2 class="${isThai(p.name)?'th':''}" data-f="name" data-id="${p.id}" data-ph="ใส่ชื่อ">${esc(p.name)}</h2>
         <p class="role" data-f="role" data-id="${p.id}" data-ph="คำโปรยหรือตำแหน่ง">${esc(p.role)}</p>
+        ${tagsEl(p)}
         <div class="gold-rule"></div>
       </div>
     </div>
@@ -608,7 +675,18 @@ function setEditing(on){
 }
 function commit(el){
   const p = getP(el.dataset.id); if(!p) return;
-  p[el.dataset.f] = el.textContent.replace(/\u00a0/g,' ').replace(/\s+$/,'');
+  const txt = el.textContent.replace(/\u00a0/g,' ').replace(/\s+$/,'');
+  p[el.dataset.f] = el.dataset.arr ? toArr(txt) : txt;
+  saveSoon(p.id);
+}
+
+/* ตำแหน่ง toggle — a person can hold as many as they like */
+function toggleJob(btn){
+  const p = getP(btn.dataset.id); if(!p) return;
+  const v = btn.dataset.val, i = p.jobs.indexOf(v);
+  if(i >= 0) p.jobs.splice(i,1); else p.jobs.push(v);
+  p.job = p.jobs[0] || '';                       // keeps the old single-value column in step
+  btn.setAttribute('aria-pressed', String(i < 0));
   saveSoon(p.id);
 }
 document.addEventListener('input', e => {
@@ -619,7 +697,7 @@ document.addEventListener('input', e => {
 document.addEventListener('blur', e => {
   const el = e.target.closest && e.target.closest('[data-f]'); if(!el) return;
   commit(el);
-  if(el.dataset.f === 'batch') renderChips();
+  if(el.dataset.f === 'batch' || el.dataset.f === 'tags') renderChips();
 }, true);
 document.addEventListener('keydown', e => {
   const el = e.target.closest && e.target.closest('[data-f]');
@@ -775,12 +853,16 @@ $('#wall').addEventListener('click', e => {
   const kill = e.target.closest('[data-kill]');
   if(kill){ arm(kill, async () => { await removePerson(kill.dataset.kill); render(); }); return; }
   if(e.target.closest('#addNew')) return addPerson();
+  const tg = e.target.closest('[data-togjob]');
+  if(tg){ toggleJob(tg); return; }
   if(e.target.closest('[data-f]') || e.target.closest('[data-sel]')) return;
   const fr = e.target.closest('[data-open]');
   if(fr) openProfile(fr.dataset.open);
 });
 $('#profile').addEventListener('click', e => {
   if(e.target.id === 'profile' || e.target.closest('#back')) return closeProfile();
+  const tgp = e.target.closest('[data-togjob]');
+  if(tgp){ toggleJob(tgp); return; }
   if(e.target.closest('[data-cam]')){ photoTarget = openId; $('#photoFile').click(); return; }
   if(e.target.closest('[data-rmphoto]')){ getP(openId).photo = ''; saveSoon(openId); openProfile(openId); return; }
   const kp = e.target.closest('[data-killperson]');
@@ -791,7 +873,8 @@ $('#profile').addEventListener('click', e => {
 
 function addPerson(){
   const p = normalise({ id: uid(),
-                        job: job === 'all' ? '' : job,
+                        jobs: job === 'all' ? [] : [job],
+                        tags: tag === 'all' ? [] : [tag],
                         batch: batch === 'all' ? '' : batch,
                         ord: people.reduce((m,x) => Math.max(m, x.ord||0), 0) + 1 });
   people.push(p);
@@ -812,6 +895,10 @@ $('#batchChips').addEventListener('click', e => {
 $('#jobChips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if(!c) return;
   job = c.dataset.job; render();
+});
+$('#tagChips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if(!c) return;
+  tag = c.dataset.tag; render();
 });
 $('#q').addEventListener('input', e => { query = e.target.value; render(); });
 $('#editpill').onclick = () => setEditing(!editing);
