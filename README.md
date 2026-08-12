@@ -1,1 +1,1 @@
-# SPS_Medicak_Yearbook
+# SPS_Medical_Yearbook
