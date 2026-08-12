@@ -142,6 +142,41 @@ select.job:hover,select.job:focus{border-color:var(--champagne);outline:none}
 select.job option{background:var(--velvet);color:var(--pearl);letter-spacing:normal;
   text-transform:none;font-size:14px}
 
+/* ============================================================
+   ALUMNI / RESIGNED
+   the colour drains out, but hovering brings them back
+   ============================================================ */
+.niche.gone .frame img{filter:grayscale(1) brightness(.78) contrast(.95)}
+.niche.gone:hover .frame img{filter:grayscale(.12) brightness(.98) contrast(1.03)}
+.niche.gone .frame::before{background:linear-gradient(180deg,rgba(20,14,28,.30),transparent 38%,rgba(20,14,28,.78))}
+.niche.gone .frame::after{border-color:rgba(163,143,187,.30)}
+.niche.gone .monogram{color:rgba(163,143,187,.26)}
+.niche.gone .name{color:rgba(246,241,234,.60)}
+.niche.gone .job{color:var(--muted);border-color:rgba(163,143,187,.28)}
+/* the detail view always shows the photo in full colour — the grey is only
+   for the wall. delete the .stamp rule below too if you want no badge at all. */
+
+.stamp{position:absolute;left:50%;transform:translateX(-50%);bottom:13px;z-index:2;
+  font-family:var(--thai);font-size:10px;letter-spacing:.2em;white-space:nowrap;
+  color:rgba(246,241,234,.92);background:rgba(20,14,28,.72);backdrop-filter:blur(5px);
+  border:1px solid rgba(246,241,234,.26);border-radius:999px;padding:4px 13px;pointer-events:none}
+.portrait .stamp{font-size:12px;bottom:24px;padding:6px 18px;letter-spacing:.24em}
+
+.restog{display:none;margin:12px 0 0;font-family:var(--thai);font-size:11.5px;letter-spacing:.06em;
+  background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;
+  padding:6px 15px;cursor:pointer;transition:.28s var(--ease)}
+body.editing .restog{display:inline-block}
+.restog:hover{color:var(--champagne);border-color:rgba(239,213,163,.5)}
+.restog[aria-pressed="true"]{border-color:var(--blush);color:var(--blush);background:rgba(233,169,159,.08)}
+
+/* ============================================================
+   PHOTO FRAMING — drag the picture inside its frame while editing
+   ============================================================ */
+body.editing .frame img,body.editing .portrait img{cursor:grab;touch-action:none}
+body.editing .frame img:active,body.editing .portrait img:active{cursor:grabbing}
+.frame.framing::after,.portrait.framing::after{opacity:1;inset:11px;border-color:var(--champagne)}
+.frame.framing img,.portrait.framing img{filter:none !important}
+
 .empty{grid-column:1/-1;text-align:center;padding:70px 20px;color:var(--muted)}
 .empty p{font-family:var(--thai);font-size:15px;margin:0 0 6px}
 .empty span{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--foil)}
@@ -317,6 +352,7 @@ body.editing .footnote{display:block}
     <div class="frow" id="jobChips"></div>
     <div class="frow" id="batchChips"></div>
     <div class="frow" id="tagChips"></div>
+    <div class="frow" id="statusChips"></div>
     <p class="count" id="count"></p>
   </div>
 
@@ -324,6 +360,7 @@ body.editing .footnote{display:block}
 
   <p class="hint">ลากปุ่มมุมซ้ายบนของการ์ดเพื่อสลับลำดับ · หรือกดปุ่มนั้นแล้วใช้ปุ่มลูกศรซ้าย-ขวา<br>
     กดชื่อตำแหน่งเพื่อเลือก/เอาออก (เลือกได้หลายอัน) · โปรเจกต์พิมพ์คั่นด้วยเครื่องหมาย ,<br>
+    ลากรูปในกรอบเพื่อจัดตำแหน่งภาพ · กดปุ่มใต้การ์ดเพื่อทำเครื่องหมายว่าลาออกแล้ว<br>
     <span id="modeNote"></span></p>
   <div class="footnote">
     <button id="backup">ดาวน์โหลดสำเนาข้อมูลเก็บไว้</button>
@@ -360,9 +397,11 @@ const CONFIG = {
   EDIT_CODE    : ''             // optional: a word people must type to edit
 };
 
+
 /* ตำแหน่ง — add or rename freely, the filter follows this list */
 const JOBS = ['BD','Logistic','IT','Programmer'];
 const DEFAULT_LABEL = 'คำที่อยากบอก';
+const GONE_LABEL    = 'ลาออกแล้ว';        /* wording on the badge — change freely */
 
 const SEED = [
   {"id":"p1", "name":"JRBABUKUNG", "jobs":["BD","IT"], "tags":["Yearbook 2026","Onboarding"], "batch":"Example", "role":"ตัวอย่างคำโปรย", "photo":"", "label":"คำที่อยากบอก", "message":"ตัวอย่างข้อความ — พิมพ์สิ่งที่อยากบอกไว้ในหนังสือรุ่นตรงนี้ได้เลย", "ord":1},
@@ -420,7 +459,7 @@ const local = {
 };
 
 /* only these keys are sent to the database — must match the table columns */
-const COLUMNS = ['id','name','job','jobs','tags','batch','role','photo','label','message','ord'];
+const COLUMNS = ['id','name','job','jobs','tags','batch','role','photo','pos','resigned','label','message','ord'];
 const toRow = p => Object.fromEntries(COLUMNS.map(k => [k, p[k]]));
 
 const store = {
@@ -461,7 +500,7 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
 let people = [], view = [], openId = null;
-let query = '', batch = 'all', job = 'all', tag = 'all';
+let query = '', batch = 'all', job = 'all', tag = 'all', status = 'all';
 let editing = false, unlocked = !CONFIG.EDIT_CODE, photoTarget = null;
 
 /* accepts an array, a JSON string, or "a, b, c" — always returns a clean array */
@@ -480,7 +519,8 @@ function normalise(p){
   const jobs = toArr(p.jobs).length ? toArr(p.jobs) : toArr(p.job);
   const o = { id:p.id || uid(), name:p.name||'', job:jobs[0]||'', jobs, tags:toArr(p.tags),
               batch:p.batch||'', role:p.role||'',
-              photo:p.photo||'', label:p.label||DEFAULT_LABEL, message:p.message||'',
+              photo:p.photo||'', pos:p.pos||'50% 50%', resigned:!!p.resigned,
+              label:p.label||DEFAULT_LABEL, message:p.message||'',
               ord: typeof p.ord === 'number' ? p.ord : 0 };
   if(!o.message && Array.isArray(p.qa))                    // carry over older entries
     o.message = p.qa.map(x => x && x.a).filter(Boolean).join('\n\n');
@@ -535,6 +575,9 @@ function renderChips(){
   $('#batchChips').innerHTML = `<span class="lab">รุ่น</span>` +
     ['all', ...batches()].map(b =>
       `<button class="chip" data-b="${esc(b)}" aria-pressed="${b===batch}">${b==='all'?'ทั้งหมด':esc(b)}</button>`).join('');
+  const STATUS = [['all','ทั้งหมด'],['here','ยังอยู่'],['gone',GONE_LABEL]];
+  $('#statusChips').innerHTML = `<span class="lab">สถานะ</span>` + STATUS.map(([v,t]) =>
+    `<button class="chip" data-st="${v}" aria-pressed="${v===status}">${esc(t)}</button>`).join('');
   const tags = allTags();
   $('#tagChips').style.display = tags.length ? '' : 'none';
   $('#tagChips').innerHTML = `<span class="lab">โปรเจกต์</span>` +
@@ -542,10 +585,15 @@ function renderChips(){
       `<button class="chip" data-tag="${esc(t)}" aria-pressed="${t===tag}">${t==='all'?'ทั้งหมด':esc(t)}</button>`).join('');
 }
 function avatar(p){
-  if(p.photo) return `<img src="${esc(p.photo)}" alt="${esc(p.name)}" loading="lazy" onerror="this.remove()">`;
+  const stamp = p.resigned ? `<span class="stamp">${esc(GONE_LABEL)}</span>` : '';
+  if(p.photo) return `<img src="${esc(p.photo)}" alt="${esc(p.name)}" draggable="false"
+      data-pos data-id="${p.id}" style="object-position:${esc(p.pos)}"
+      loading="lazy" onerror="this.remove()">${stamp}`;
   const ch = (p.name||'').trim().charAt(0) || '✦';
-  return `<div class="monogram ${isThai(ch)?'th':''}">${esc(ch)}</div>`;
+  return `<div class="monogram ${isThai(ch)?'th':''}">${esc(ch)}</div>${stamp}`;
 }
+const resTog = p => `<button class="restog" data-res data-id="${p.id}"
+  aria-pressed="${p.resigned}">${p.resigned ? '● '+esc(GONE_LABEL) : '○ ทำเครื่องหมายว่า'+esc(GONE_LABEL)}</button>`;
 /* ตำแหน่ง — read: one pill per department. edit: every department is a toggle. */
 function jobsEl(p){
   if(editing) return `<div class="jobwrap">${JOBS.map(j =>
@@ -577,11 +625,12 @@ function render(){
     (batch === 'all' || p.batch === batch) &&
     (job === 'all' || p.jobs.includes(job)) &&
     (tag === 'all' || p.tags.includes(tag)) &&
+    (status === 'all' || (status === 'gone' ? p.resigned : !p.resigned)) &&
     (!q || [p.name, p.role, ...p.jobs, ...p.tags].join(' ').toLowerCase().includes(q)));
   $('#count').textContent = view.length + ' / ' + people.length + ' entries';
 
   const cards = view.map(p => `
-    <article class="niche" data-id="${p.id}">
+    <article class="niche${p.resigned?' gone':''}" data-id="${p.id}">
       ${GRIP}
       <button class="kill" data-kill="${p.id}" title="ลบคนนี้">×</button>
       <div class="frame" data-open="${p.id}" role="button" tabindex="0" aria-label="${esc(p.name)||'entry'}">
@@ -592,6 +641,7 @@ function render(){
       <p class="batch" data-f="batch" data-id="${p.id}" data-ph="ใส่รุ่น">${esc(p.batch)}</p>
       <p class="role" data-f="role" data-id="${p.id}" data-ph="คำโปรยหรือตำแหน่ง">${esc(p.role)}</p>
       ${tagsEl(p)}
+      ${editing ? resTog(p) : ''}
     </article>`).join('');
 
   const add = `<div class="addcard"><button id="addNew" title="เพิ่มคนใหม่">+</button><p>เพิ่มคนใหม่</p></div>`;
@@ -612,9 +662,10 @@ function openProfile(id){
     <button class="backbtn" id="back"><span>←</span> กลับไปหน้ารวม</button>
     <div class="portrait-row">
       <div>
-        <div class="portrait" data-portrait>${avatar(p)}${CAM}</div>
+        <div class="portrait${p.resigned?' gone':''}" data-portrait>${avatar(p)}${CAM}</div>
         <p class="photohint">แตะไอคอนกล้องเพื่อเลือกรูป หรือลากรูปมาวางบนกรอบ${
-          p.photo ? ` · <button data-rmphoto>ลบรูป</button>` : ''}</p>
+          p.photo ? ` · ลากรูปในกรอบเพื่อจัดตำแหน่ง · <button data-rmpos>จัดกลาง</button> · <button data-rmphoto>ลบรูป</button>` : ''}</p>
+        <div style="text-align:center">${resTog(p)}</div>
       </div>
       <div class="titleblock">
         <div class="meta">
@@ -673,9 +724,22 @@ function setEditing(on){
   render();
   if(wasOpen) openProfile(wasOpen);
 }
+/* textContent throws away <br>, which is exactly what a paste turns newlines into.
+   innerText keeps them, so paragraphs survive. */
+function readEl(el){
+  let t = el.innerText != null ? el.innerText : el.textContent;
+  t = t.replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n');
+  if(el.dataset.f === 'message'){
+    t = t.replace(/[ \t]+\n/g,'\n')      // no trailing spaces on a line
+         .replace(/\n{3,}/g,'\n\n');      // at most one blank line between paragraphs
+  } else {
+    t = t.replace(/\s*\n+\s*/g,' ');      // one-line fields stay on one line
+  }
+  return t.replace(/\s+$/,'');
+}
 function commit(el){
   const p = getP(el.dataset.id); if(!p) return;
-  const txt = el.textContent.replace(/\u00a0/g,' ').replace(/\s+$/,'');
+  const txt = readEl(el);
   p[el.dataset.f] = el.dataset.arr ? toArr(txt) : txt;
   saveSoon(p.id);
 }
@@ -706,7 +770,11 @@ document.addEventListener('keydown', e => {
 document.addEventListener('paste', e => {
   const el = e.target.closest && e.target.closest('[data-f]'); if(!el) return;
   e.preventDefault();
-  document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text'));
+  let t = ((e.clipboardData || window.clipboardData).getData('text') || '')
+            .replace(/\r\n?/g,'\n').replace(/\u00a0/g,' ');
+  if(el.dataset.f !== 'message') t = t.replace(/\s*\n+\s*/g,' ').trim();
+  else t = t.replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n');
+  document.execCommand('insertText', false, t);
 });
 /* the ตำแหน่ง dropdown */
 document.addEventListener('change', e => {
@@ -715,6 +783,67 @@ document.addEventListener('change', e => {
   p[s.dataset.sel] = s.value;
   saveSoon(p.id);
 });
+
+/* ---------- drag the photo inside its frame ----------
+   maths: with object-fit:cover the picture overflows its box. we work out by how
+   much (dw/dh), then translate a pixel drag into a percentage of that overflow,
+   so the picture tracks the finger exactly. */
+let framing = null, blockClick = false;
+function startFraming(img, e){
+  const box = img.parentElement;
+  const r = img.getBoundingClientRect();
+  const nw = img.naturalWidth, nh = img.naturalHeight;
+  if(!nw || !nh) return;
+  const sc = Math.max(r.width / nw, r.height / nh);
+  const cur = (img.style.objectPosition || '50% 50%').split(/\s+/);
+  framing = {
+    img, box, pid: e.pointerId,
+    x: e.clientX, y: e.clientY,
+    dw: nw * sc - r.width, dh: nh * sc - r.height,
+    px: parseFloat(cur[0]) || 50, py: parseFloat(cur[1]) || 50,
+    moved: false
+  };
+  img.setPointerCapture(e.pointerId);
+  box.classList.add('framing');
+}
+function moveFraming(e){
+  if(!framing || e.pointerId !== framing.pid) return;
+  const f = framing;
+  const dx = e.clientX - f.x, dy = e.clientY - f.y;
+  if(Math.abs(dx) > 2 || Math.abs(dy) > 2) f.moved = true;
+  const nx = f.dw > 0 ? Math.min(100, Math.max(0, f.px - dx / f.dw * 100)) : 50;
+  const ny = f.dh > 0 ? Math.min(100, Math.max(0, f.py - dy / f.dh * 100)) : 50;
+  f.img.style.objectPosition = `${nx.toFixed(1)}% ${ny.toFixed(1)}%`;
+}
+function endFraming(){
+  if(!framing) return;
+  const f = framing; framing = null;
+  f.box.classList.remove('framing');
+  if(!f.moved) return;
+  blockClick = true;                       // stop the pointerup turning into "open profile"
+  setTimeout(() => { blockClick = false; }, 300);
+  const p = getP(f.img.dataset.id); if(!p) return;
+  p.pos = f.img.style.objectPosition;
+  saveSoon(p.id);
+}
+document.addEventListener('pointerdown', e => {
+  if(!editing) return;
+  const img = e.target.closest && e.target.closest('img[data-pos]');
+  if(!img) return;
+  e.preventDefault();
+  startFraming(img, e);
+});
+document.addEventListener('pointermove', moveFraming);
+document.addEventListener('pointerup', endFraming);
+document.addEventListener('pointercancel', endFraming);
+
+/* ---------- resigned toggle ---------- */
+function toggleResigned(btn){
+  const p = getP(btn.dataset.id); if(!p) return;
+  p.resigned = !p.resigned;
+  saveSoon(p.id);
+  if(openId === p.id) openProfile(p.id); else render();
+}
 
 /* ---------- reorder ---------- */
 let drag = null;
@@ -805,7 +934,7 @@ function shrink(file){
 }
 async function setPhoto(id, file){
   const p = getP(id); if(!p) return;
-  try{ p.photo = await shrink(file); }catch(err){ flash('อ่านรูปไม่ได้'); return; }
+  try{ p.photo = await shrink(file); p.pos = '50% 50%'; }catch(err){ flash('อ่านรูปไม่ได้'); return; }
   saveSoon(id);
   if(openId === id) openProfile(id); else render();
 }
@@ -847,7 +976,10 @@ async function removePerson(id){
 
 /* ---------- clicks ---------- */
 $('#wall').addEventListener('click', e => {
+  if(blockClick) return;
   if(e.target.closest('.grip')) return;
+  const rs = e.target.closest('[data-res]');
+  if(rs){ toggleResigned(rs); return; }
   const cam = e.target.closest('[data-cam]');
   if(cam){ photoTarget = cam.closest('.niche').dataset.id; $('#photoFile').click(); return; }
   const kill = e.target.closest('[data-kill]');
@@ -861,6 +993,13 @@ $('#wall').addEventListener('click', e => {
 });
 $('#profile').addEventListener('click', e => {
   if(e.target.id === 'profile' || e.target.closest('#back')) return closeProfile();
+  if(blockClick) return;
+  const rsp = e.target.closest('[data-res]');
+  if(rsp){ toggleResigned(rsp); return; }
+  if(e.target.closest('[data-rmpos]')){
+    const p = getP(openId); if(p){ p.pos = '50% 50%'; saveSoon(p.id); openProfile(openId); }
+    return;
+  }
   const tgp = e.target.closest('[data-togjob]');
   if(tgp){ toggleJob(tgp); return; }
   if(e.target.closest('[data-cam]')){ photoTarget = openId; $('#photoFile').click(); return; }
@@ -895,6 +1034,10 @@ $('#batchChips').addEventListener('click', e => {
 $('#jobChips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if(!c) return;
   job = c.dataset.job; render();
+});
+$('#statusChips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if(!c) return;
+  status = c.dataset.st; render();
 });
 $('#tagChips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if(!c) return;
